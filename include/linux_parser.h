@@ -17,6 +17,7 @@ const std::string kMeminfoFilename{"/meminfo"};
 const std::string kVersionFilename{"/version"};
 const std::string kOSPath{"/etc/os-release"};
 const std::string kPasswordPath{"/etc/passwd"};
+const int HERTZ = 100;
 
 // System
 float MemoryUtilization();
@@ -40,18 +41,19 @@ enum CPUStates {
   kGuest_,
   kGuestNice_
 };
-std::vector<std::string> CpuUtilization();
-long Jiffies();
-long ActiveJiffies();
-long ActiveJiffies(int pid);
-long IdleJiffies();
+float CpuUtilization();
+//long Jiffies();
+//long ActiveJiffies();
+//long ActiveJiffies(int pid);
+//long IdleJiffies();
 
 // Processes
 std::string Command(int pid);
 std::string Ram(int pid);
 std::string Uid(int pid);
 std::string User(int pid);
-long int UpTime(int pid);
+long int ProcessUpTime(int pid);
+float ProcessCpuUtilization(int pid);
 };  // namespace LinuxParser
 
 #endif
