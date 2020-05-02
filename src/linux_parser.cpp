@@ -27,11 +27,13 @@ string LinuxParser::OperatingSystem() {
       while (linestream >> key >> value) {
         if (key == "PRETTY_NAME") {
           std::replace(value.begin(), value.end(), '_', ' ');
+          filestream.close();
           return value;
         }
       }
     }
   }
+  filestream.close();
   return value;
 }
 
@@ -45,6 +47,7 @@ string LinuxParser::Kernel() {
     std::istringstream linestream(line);
     linestream >> os >> junk >> kernel;
   }
+  stream.close();
   return kernel;
 }
 
@@ -93,7 +96,8 @@ float LinuxParser::MemoryUtilization()
       }
     }
   }
-
+  filestream.close();
+  
   int memused = memtotal - memfree;
   if ( memtotal > 0 )
   {
@@ -119,84 +123,73 @@ long LinuxParser::UpTime()
   return longuptime;
 }
 
-// I think I did this elsewhere: Read and return the number of jiffies for the system
-// long LinuxParser::Jiffies() { return 0; }
+// DONE: Code provided
+long LinuxParser::Jiffies() { return UpTime() * sysconf(_SC_CLK_TCK); }
 
-// I think I did this elsewhere: Read and return the number of active jiffies for a PID
-// long LinuxParser::ActiveJiffies(int pid[[maybe_unused]]) { return 0; }
+// DONE: Code provided
+long LinuxParser::ActiveJiffies(int pid) {
+  string line, token;
+  vector<string> values;
+  std::ifstream filestream(LinuxParser::kProcDirectory + to_string(pid) +
+                           LinuxParser::kStatFilename);
+  if (filestream.is_open()) {
+    std::getline(filestream, line);
+    std::istringstream linestream(line);
+    while (linestream >> token) {
+      values.push_back(token);
+    }
+  }
+  long jiffies{0};
+  if (values.size() > 21) {
+    long user = stol(values[13]);
+    long kernel = stol(values[14]);
+    long children_user = stol(values[15]);
+    long children_kernel = stol(values[16]);
+    jiffies = user + kernel + children_user + children_kernel;
+  }
+  return jiffies;
+}
 
-// I think I did this elsewhere: Read and return the number of active jiffies for the system
-// long LinuxParser::ActiveJiffies() { return 0; }
+// DONE: Code provided
+long LinuxParser::ActiveJiffies() {
+  vector<string> time = CpuUtilization();
+  return (stol(time[CPUStates::kUser_]) + stol(time[CPUStates::kNice_]) +
+          stol(time[CPUStates::kSystem_]) + stol(time[CPUStates::kIRQ_]) +
+          stol(time[CPUStates::kSoftIRQ_]) + stol(time[CPUStates::kSteal_]) +
+          stol(time[CPUStates::kGuest_]) + stol(time[CPUStates::kGuestNice_]));
+}
 
-// I think I did this elsewhere: Read and return the number of idle jiffies for the system
-// long LinuxParser::IdleJiffies() { return 0; }
+// DONE: Code provided
+long LinuxParser::IdleJiffies() {
+  vector<string> time = CpuUtilization();
+  return (stol(time[CPUStates::kIdle_]) + stol(time[CPUStates::kIOwait_]));
+}
 
 // DONE: Read and return CPU utilization
-float LinuxParser::CpuUtilization()
+vector<std::string> LinuxParser::CpuUtilization()
 { 
-  float result = 0.0;
-  int v[8] {0,0,0,0,0,0,0,0};
-  int user = 0;
-  int nice = 0;
-  int system = 0;
-  int idle = 0;
-  int iowait = 0;
-  int irq = 0;
-  int softirq = 0;
-  int steal = 0;
-  static int prevuser = 0;
-  static int prevnice = 0;
-  static int prevsystem = 0;
-  static int previdle = 0;
-  static int previowait = 0;
-  static int previrq = 0;
-  static int prevsoftirq = 0;
-  static int prevsteal = 0;
+  vector<std::string> result {};
+  vector<std::string> temp {};
   string line;
   string key;
-
+  string token;
+  
   std::ifstream filestream(kProcDirectory+kStatFilename);
   if (filestream.is_open()) {
     while (std::getline(filestream, line)) {
       std::istringstream linestream(line);
-      while (linestream >> key >> v[0] >> v[1] >> v[2] >> v[3] >> v[4] >> v[5] >> v[6] >> v[7]) {
-        if (key == "cpu") {
-          user = v[0];
-          nice = v[1];
-          system = v[2];
-          idle = v[3];
-          iowait = v[4];
-          irq = v[5];
-          softirq = v[6];
-          steal = v[7];
+      if ( (linestream >> key) && (key=="cpu") ) {
+        temp.clear();
+        while (linestream >> token) {
+          temp.push_back(token);
+        }
+        if (temp.size()>=8) {
+          result = temp;
           break;
         }
       }
     }
   }
-
-  int PrevIdle = previdle + previowait;
-  int Idle = idle + iowait;
-  int PrevNonIdle = prevuser + prevnice + prevsystem + previrq + prevsoftirq + prevsteal;
-  int NonIdle = user + nice + system + irq + softirq + steal;
-  int PrevTotal = PrevIdle + PrevNonIdle;
-  int Total = Idle + NonIdle;
-  // differentiate: actual value minus the previous one
-  int totald = Total - PrevTotal;
-  int idled = Idle - PrevIdle;
-  float CPU_Percentage = ((float)(totald - idled))/totald;
-  if ( totald>1.0 || totald<0.0 )
-  {
-    prevuser = user;
-    prevnice = nice;
-    prevsystem = system;
-    previdle = idle;
-    previowait = iowait;
-    previrq = irq;
-    prevsoftirq = softirq;
-    prevsteal = steal;
-  }
-  result = CPU_Percentage;
   return result; 
 }
 
